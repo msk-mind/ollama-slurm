@@ -87,12 +87,18 @@ EOF
 
 **Available configurations:**
 
-| Config | Model | GPUs | Memory | Special Settings |
-|--------|-------|------|--------|------------------|
-| `qwen3-30b` | Qwen3 30B Q4_K_M | 2 | 64G | - |
-| `qwen3-coder-30b` | Qwen3 Coder 30B Q8_0 | 2 | 64G | - |
-| `qwen3-80b` | Qwen3 80B Q4_K_XL | 4 | 128G | - |
-| `glm-4.7` | GLM-4.7 Flash Q4_K_M | 1 | 32G | DeepSeek2 gating, reasoning disabled |
+| Config | Model | GPUs | Memory | GPU Requirements | Notes |
+|--------|-------|------|--------|------------------|-------|
+| `qwen3-30b` | Qwen3 30B Q4_K_M | 2 | 64G | 2x A100 80GB or 4x V100 32GB | ~18GB model + 13GB KV cache/GPU |
+| `qwen3-coder-30b` | Qwen3 Coder 30B Q8_0 | 2 | 64G | 2x A100 80GB or 4x V100 32GB | ~32GB model + 13GB KV cache/GPU |
+| `qwen3-80b` | Qwen3 80B Q4_K_XL | 4 | 128G | 4x A100 80GB only | ~47GB model + 13GB KV cache/GPU |
+| `glm-4.7` | GLM-4.7 Flash Q4_K_M | 2 | 32G | 2x A100 80GB only | ~16GB model + 13GB KV cache/GPU, DeepSeek2 gating |
+
+**GPU VRAM Notes:**
+- **A100 80GB**: Can run all configurations
+- **V100 32GB**: Can run qwen3-30b and qwen3-coder-30b with 4 GPUs, NOT glm-4.7 or qwen3-80b
+- **V100 16GB**: Not recommended for these models with 128K context
+- KV cache at 128K context requires ~13GB VRAM per GPU for all models
 
 ### Connect Claude CLI
 
@@ -159,12 +165,16 @@ scancel <job_id>
 - llama.cpp with server support (`llama-server` binary)
   - **Important**: Must be compiled with CUDA support for your GPU architecture
   - For A100 GPUs (compute capability 8.0): compile with `GGML_CUDA_COMPUTE_CAP=80`
+  - For V100 GPUs (compute capability 7.0): compile with `GGML_CUDA_COMPUTE_CAP=70`
   - See [llama.cpp compilation guide](https://github.com/ggml-org/llama.cpp?tab=readme-ov-file#cuda)
 - GGUF model files in `~/.cache/llama.cpp/`
 - Claude CLI installed
 - Python 3 (for port selection)
 - curl (for health checks)
 - NVIDIA GPUs with CUDA support
+  - **A100 80GB**: Recommended, supports all model configurations
+  - **V100 32GB**: Supports qwen3-30b and qwen3-coder-30b (with 4 GPUs)
+  - **V100 16GB**: Not recommended for 128K context models
 
 ## Troubleshooting
 
@@ -194,3 +204,10 @@ scancel <job_id>
 - Check available models: `ls ~/.cache/llama.cpp/*.gguf`
 - Verify model path in configuration
 - Try with different quantization (Q4_K_M, Q8_0, etc.)
+
+**Out of memory errors:**
+- Check GPU VRAM: `nvidia-smi`
+- GLM-4.7 and qwen3-80b require A100 80GB GPUs
+- qwen3-30b models can use V100 32GB with 4 GPUs
+- Reduce context size: `--context 65536` (but may impact Claude Code performance)
+- Use lower quantization: Q4_K_M instead of Q8_0
