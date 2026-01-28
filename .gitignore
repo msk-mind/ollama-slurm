@@ -1,0 +1,22 @@
+# SLURM job outputs
+*.log
+*.err
+llama_server_connection_*.txt
+ollama_server_connection_*.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
