@@ -122,6 +122,8 @@ EOF
 ./connect_claude.sh 2883398 ~/code --resume abc123
 ```
 
+**Note**: Claude Code may take 10-30 seconds to start in git repositories on network filesystems (like `/gpfs`) due to repository scanning. For faster startup, work in a non-git directory or disable the git MCP server in `~/.claude/settings.json`.
+
 Lists active llama.cpp server jobs if no job ID is provided.
 
 ### Manual Connection
