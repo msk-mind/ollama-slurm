@@ -124,6 +124,11 @@ EOF
 
 **Note**: On first connection to a directory, Claude will ask you to confirm trust of the workspace. Make sure to run `connect_claude.sh` from an interactive terminal (not a script). If you see the "trust this folder" prompt, select "Yes" to continue. You can also pre-approve with: `claude trust /path/to/workspace`
 
+**Known Issue**: Some directories may cause Claude to hang indefinitely when connecting to local llama.cpp servers, even though they work fine with Anthropic's API. This appears to be a Claude Code bug with certain directory configurations. If you experience this, try:
+1. Use a different working directory that doesn't have the issue
+2. Start Claude in a working directory, then access problematic directory files as needed
+3. Use Claude with the official Anthropic API for those directories
+
 Lists active llama.cpp server jobs if no job ID is provided.
 
 ### Manual Connection
