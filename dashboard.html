@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Llama Server Registry</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls button {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .controls button:hover { background: #0056b3; }
+        .status {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-item {
+            text-align: center;
+        }
+        .status-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .status-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .server-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .server-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: box-shadow 0.3s;
+        }
+        .server-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+        .job-id {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        .uptime {
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .server-info {
+            margin-bottom: 10px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .info-label {
+            color: #666;
+            font-size: 14px;
+        }
+        .info-value {
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .connection {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .connection-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        .copy-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            margin-top: 5px;
+        }
+        .copy-btn:hover { background: #5a6268; }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 8px;
+            color: #666;
+        }
+        .error {
+            background: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦙 Llama Server Registry</h1>
+        <p class="subtitle">Discover and connect to available llama.cpp servers</p>
+
+        <div class="controls">
+            <input type="text" id="registryUrl" placeholder="Registry URL (e.g., http://localhost:5000)" value="http://localhost:5000">
+            <input type="text" id="ownerFilter" placeholder="Filter by owner (optional)">
+            <button onclick="loadServers()">🔄 Refresh</button>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div class="status" id="status" style="display: none;">
+            <div class="status-item">
+                <div class="status-value" id="serverCount">0</div>
+                <div class="status-label">Active Servers</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="lastUpdate">--</div>
+                <div class="status-label">Last Updated</div>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">Loading servers...</div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshInterval;
+
+        async function loadServers() {
+            const registryUrl = document.getElementById('registryUrl').value.trim();
+            const ownerFilter = document.getElementById('ownerFilter').value.trim();
+            const errorDiv = document.getElementById('error');
+            const contentDiv = document.getElementById('content');
+            const statusDiv = document.getElementById('status');
+
+            errorDiv.style.display = 'none';
+
+            if (!registryUrl) {
+                showError('Please enter a registry URL');
+                return;
+            }
+
+            try {
+                const url = ownerFilter 
+                    ? `${registryUrl}/servers/by-owner/${ownerFilter}`
+                    : `${registryUrl}/servers`;
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const servers = data.servers || [];
+
+                displayServers(Array.isArray(servers) ? servers : Object.entries(servers).map(([id, info]) => ({...info, job_id: id})));
+                
+                document.getElementById('serverCount').textContent = servers.length;
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                statusDiv.style.display = 'flex';
+
+            } catch (error) {
+                showError(`Failed to load servers: ${error.message}`);
+                contentDiv.innerHTML = '';
+            }
+        }
+
+        function displayServers(servers) {
+            const contentDiv = document.getElementById('content');
+
+            if (servers.length === 0) {
+                contentDiv.innerHTML = '<div class="empty-state"><h2>No servers found</h2><p>Submit a server job or adjust your filters</p></div>';
+                return;
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'server-grid';
+
+            servers.forEach(server => {
+                const card = createServerCard(server);
+                grid.appendChild(card);
+            });
+
+            contentDiv.innerHTML = '';
+            contentDiv.appendChild(grid);
+        }
+
+        function createServerCard(server) {
+            const card = document.createElement('div');
+            card.className = 'server-card';
+
+            const uptime = server.uptime_hours ? `${server.uptime_hours}h` : 'N/A';
+            const modelName = server.model_name || 'Unknown';
+            const owner = server.owner || 'Unknown';
+            const startTime = server.start_time ? new Date(server.start_time).toLocaleString() : 'Unknown';
+
+            card.innerHTML = `
+                <div class="server-header">
+                    <div class="job-id">Job ${server.job_id}</div>
+                    <div class="uptime">${uptime}</div>
+                </div>
+                <div class="server-info">
+                    <div class="info-row">
+                        <span class="info-label">Owner</span>
+                        <span class="info-value">${owner}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Model</span>
+                        <span class="info-value">${modelName}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Host</span>
+                        <span class="info-value">${server.host}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Port</span>
+                        <span class="info-value">${server.port}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Started</span>
+                        <span class="info-value">${startTime}</span>
+                    </div>
+                </div>
+                <div class="connection">
+                    <div class="connection-title">Connect:</div>
+                    <div>./connect_claude.sh ${server.job_id}</div>
+                    <button class="copy-btn" onclick="copyToClipboard('./connect_claude.sh ${server.job_id}')">Copy</button>
+                </div>
+                <div class="connection">
+                    <div class="connection-title">SSH Tunnel:</div>
+                    <div>ssh -L ${server.port}:${server.host}:${server.port} &lt;login&gt;</div>
+                    <button class="copy-btn" onclick="copyToClipboard('ssh -L ${server.port}:${server.host}:${server.port}')">Copy</button>
+                </div>
+            `;
+
+            return card;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Could add a toast notification here
+                console.log('Copied to clipboard:', text);
+            });
+        }
+
+        // Load on page load
+        loadServers();
+
+        // Auto-refresh every 30 seconds
+        autoRefreshInterval = setInterval(loadServers, 30000);
+
+        // Save registry URL to localStorage
+        document.getElementById('registryUrl').addEventListener('change', (e) => {
+            localStorage.setItem('registryUrl', e.target.value);
+        });
+
+        // Load saved registry URL
+        const savedUrl = localStorage.getItem('registryUrl');
+        if (savedUrl) {
+            document.getElementById('registryUrl').value = savedUrl;
+        }
+    </script>
+</body>
+</html>

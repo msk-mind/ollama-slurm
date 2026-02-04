@@ -2,22 +2,59 @@
 
 Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
 
+**Features:**
+
+- Automated server submission to SLURM with optimized settings
+- Central registry for discovering servers without shared filesystem access
+- Pre-configured model profiles for common LLMs
+- Automatic cleanup and health monitoring
+- Email notifications when servers are ready
+- Push notifications via ntfy.sh
+
 ## Quick Start
 
+### For Users with Shared Filesystem Access
+
 1. **Submit llama.cpp server with a saved configuration:**
+
    ```bash
    ./submit_llama.sh --config qwen3-30b
    ```
 
 2. **Wait for server to start (check logs):**
+
    ```bash
    tail -f llama_server_<job_id>.log
    ```
 
 3. **Connect Claude CLI to the server:**
+
    ```bash
-   ./connect_claude.sh <job_id>
+   ./connect_claude_llama.sh <job_id>
    ```
+
+### For Users Without Shared Filesystem Access
+
+1. **List available servers from the registry:**
+
+   ```bash
+   curl http://your-registry-server:5000/servers | jq
+   ```
+
+2. **Create SSH tunnel to the server:**
+
+   ```bash
+   ssh -L 8080:<host>:<port> your-login-node
+   ```
+
+3. **Connect Claude to the tunneled server:**
+
+   ```bash
+   export ANTHROPIC_BASE_URL="http://localhost:8080"
+   claude
+   ```
+
+See [REGISTRY_SETUP.md](REGISTRY_SETUP.md) for registry server setup.
 
 ## Usage
 
@@ -28,10 +65,11 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
 ```
 
 **Options:**
+
 - `--config NAME` - Use predefined model config
 - `--list-configs` - List available model configurations
 - `--model FILE` - Path to GGUF model file
-- `--time TIME` - Time limit (default: 4:00:00)
+- `--time TIME` - Time limit (default: 8:00:00)
 - `--no-time-limit` - Remove time limit entirely
 - `--partition PART` - SLURM partition (default: none)
 - `--qos QOS` - SLURM QOS (default: none)
@@ -41,9 +79,13 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
 - `--context N` - Context size (default: 131072)
 - `--gpu-layers N` - GPU layers, -1 for all (default: -1)
 - `--extra-args STR` - Additional llama-server arguments
+- `--email EMAIL` - Email address for notification when server is ready
+- `--ntfy-topic TOPIC` - Ntfy topic for push notifications (default: llama-servers)
+- `--ntfy-server URL` - Ntfy server URL (default: <https://ntfy.sh>)
 - `--help, -h` - Show help message
 
 **Examples:**
+
 ```bash
 # Use saved configuration
 ./submit_llama.sh --config qwen3-30b
@@ -53,6 +95,12 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
 
 # No time limit with saved config
 ./submit_llama.sh --config glm-4.7 --no-time-limit
+
+# With email notification
+./submit_llama.sh --config qwen3-30b --email user@example.com
+
+# With ntfy push notification
+./submit_llama.sh --config qwen3-30b --ntfy-topic my-llama-servers
 
 # Custom model file
 ./submit_llama.sh --model ~/.cache/llama.cpp/model.gguf
@@ -66,6 +114,7 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
 Model configurations are stored in `model_configs/*.conf`. Each config sets optimal parameters based on [claude-code-tools recommendations](https://github.com/pchalasani/claude-code-tools/blob/main/docs/local-llm-setup.md).
 
 **Server settings (all models):**
+
 - Context: 131072 tokens (128K)
 - Batch size: 32768
 - Ubatch: 1024
@@ -73,6 +122,7 @@ Model configurations are stored in `model_configs/*.conf`. Each config sets opti
 - Jinja templating: enabled
 
 **Create a new configuration:**
+
 ```bash
 cat > model_configs/my-model.conf <<EOF
 MODEL_FILE="~/.cache/llama.cpp/my-model.gguf"
@@ -95,6 +145,7 @@ EOF
 | `glm-4.7` | GLM-4.7 Flash Q4_K_M | 2 | 32G | 2x A100 80GB only | ~16GB model + 13GB KV cache/GPU, DeepSeek2 gating |
 
 **GPU VRAM Notes:**
+
 - **A100 80GB**: Can run all configurations
 - **V100 32GB**: Can run qwen3-30b and qwen3-coder-30b with 4 GPUs, NOT glm-4.7 or qwen3-80b
 - **V100 16GB**: Not recommended for these models with 128K context
@@ -103,28 +154,31 @@ EOF
 ### Connect Claude CLI
 
 ```bash
-./connect_claude.sh <job_id> [working_directory]
+./connect_claude_llama.sh <job_id> [working_directory]
 ```
 
 **Arguments:**
+
 - `job_id` - SLURM job ID of the running llama.cpp server
 - `working_directory` - Optional directory where Claude should run (default: current directory)
 
 **Examples:**
+
 ```bash
 # Connect from current directory
 ./connect_claude.sh 2883398
 
 # Connect and work in a specific directory
-./connect_claude.sh 2883398 /path/to/my/project
+./connect_claude_llama.sh 2883398 /path/to/my/project
 
 # Pass additional arguments to Claude
-./connect_claude.sh 2883398 ~/code --resume abc123
+./connect_claude_llama.sh 2883398 ~/code --resume abc123
 ```
 
-**Note**: On first connection to a directory, Claude will ask you to confirm trust of the workspace. Make sure to run `connect_claude.sh` from an interactive terminal (not a script). If you see the "trust this folder" prompt, select "Yes" to continue. You can also pre-approve with: `claude trust /path/to/workspace`
+**Note**: On first connection to a directory, Claude will ask you to confirm trust of the workspace. Make sure to run `connect_claude_llama.sh` from an interactive terminal (not a script). If you see the "trust this folder" prompt, select "Yes" to continue. You can also pre-approve with: `claude trust /path/to/workspace`
 
 **Known Issue**: Some directories may cause Claude to hang indefinitely when connecting to local llama.cpp servers, even though they work fine with Anthropic's API. This appears to be a Claude Code bug with certain directory configurations. If you experience this, try:
+
 1. Use a different working directory that doesn't have the issue
 2. Start Claude in a working directory, then access problematic directory files as needed
 3. Use Claude with the official Anthropic API for those directories
@@ -144,28 +198,124 @@ claude
 ## Managing Jobs
 
 **Check job status:**
+
 ```bash
 squeue -u $USER -n llama-server
 ```
 
+**List available servers (via registry):**
+
+```bash
+./list_servers.sh
+./list_servers.sh --owner $USER
+```
+
 **View logs:**
+
 ```bash
 tail -f llama_server_<job_id>.log
 ```
 
 **Cancel job:**
+
 ```bash
 scancel <job_id>
 ```
+
+## Server Discovery & Registry
+
+**NEW**: Central registry service for discovering servers without shared filesystem access.
+
+To enable, set the registry URL:
+
+```bash
+export REGISTRY_URL="http://your-registry-server:5000"
+./submit_llama.sh --config qwen3-30b
+```
+
+Servers will auto-register on startup and unregister on shutdown. See [REGISTRY_SETUP.md](REGISTRY_SETUP.md) for full setup guide.
+
+## Email Notifications
+
+Get notified by email when your server is ready:
+
+```bash
+# Specify email when submitting
+./submit_llama.sh --config qwen3-30b --email user@example.com
+
+# Or set default email in your environment
+export NOTIFY_EMAIL="user@example.com"
+./submit_llama.sh --config qwen3-30b
+```
+
+The email includes:
+
+- Server connection details (host, port, job ID)
+- Multiple connection methods (direct, SSH tunnel, web dashboard)
+- Commands to connect Claude
+- Monitoring and management commands
+
+**Requirements:**
+
+- System must have `mail`, `sendmail`, or `mutt` installed
+- SMTP service configured on compute nodes or login nodes
+
+## Push Notifications (ntfy)
+
+Get instant push notifications to your phone or desktop when servers are ready using [ntfy.sh](https://ntfy.sh):
+
+```bash
+# Use default public ntfy.sh server
+./submit_llama.sh --config qwen3-30b --ntfy-topic my-llama-servers
+
+# Use custom ntfy server
+./submit_llama.sh --config qwen3-30b --ntfy-topic servers --ntfy-server https://ntfy.mycompany.com
+
+# Set default topic in environment
+export NTFY_TOPIC="my-llama-servers"
+./submit_llama.sh --config qwen3-30b
+```
+
+**To receive notifications:**
+
+1. Install ntfy app on your phone ([iOS](https://apps.apple.com/us/app/ntfy/id1625396347), [Android](https://play.google.com/store/apps/details?id=io.heckel.ntfy))
+2. Subscribe to your topic (e.g., "my-llama-servers")
+3. Submit jobs with `--ntfy-topic`
+
+Or on desktop:
+
+```bash
+# Subscribe via CLI
+ntfy subscribe my-llama-servers
+
+# Or via web
+open https://ntfy.sh/my-llama-servers
+```
+
+**Features:**
+
+- Instant push notifications to phone/desktop
+- No authentication required (for public ntfy.sh)
+- Includes clickable link to web dashboard
+- Works from anywhere (no VPN needed)
+- Multiple devices can subscribe to same topic
+
+**Privacy note:** Public ntfy.sh topics are visible to anyone who knows the topic name. Use unique topic names or deploy your own ntfy server for privacy.
 
 ## Files
 
 - `submit_llama.sh` - Main script to submit llama.cpp server to SLURM
 - `llama_server.slurm` - SLURM batch script that runs llama.cpp server
-- `connect_claude.sh` - Connect Claude CLI to running llama.cpp server
+- `connect_claude_llama.sh` - Connect Claude CLI to running llama.cpp server
 - `setup_claude_env.sh` - Environment configuration for Claude CLI
 - `model_configs/*.conf` - Model configuration files
 - `llama_server_connection_<job_id>.txt` - Auto-generated connection info
+- **`registry_server.py`** - Central registry service
+- **`register_server.sh`** - Auto-register servers with registry
+- **`list_servers.sh`** - List available servers from registry
+- **`send_notification.sh`** - Email notification when server is ready
+- **`send_ntfy_notification.sh`** - Push notification via ntfy
+- **`REGISTRY_SETUP.md`** - Registry setup and usage guide
 
 ## Requirements
 
@@ -186,33 +336,40 @@ scancel <job_id>
 ## Troubleshooting
 
 **CUDA error: "no kernel image is available for execution":**
+
 - Your llama-server was compiled for a different GPU architecture
 - Check your GPU compute capability: `nvidia-smi --query-gpu=compute_cap --format=csv`
 - Recompile llama.cpp with correct architecture:
+
   ```bash
   cd ~/path/to/llama.cpp
   make clean
   GGML_CUDA=1 GGML_CUDA_COMPUTE_CAP=80 make llama-server  # For A100 (8.0)
   ```
+
 - Or use pre-built binaries matching your GPU
 
 **Server won't start:**
+
 - Check logs: `cat llama_server_<job_id>.log`
 - Verify llama-server is installed: `which llama-server`
 - Check node resources: `squeue -j <job_id>`
 - Verify model file exists: `ls -lh ~/.cache/llama.cpp/`
 
 **Connection issues:**
+
 - Ensure connection file exists: `ls llama_server_connection_*.txt`
 - Check server is running: `squeue -j <job_id>`
 - Verify network access between nodes
 
 **Model issues:**
+
 - Check available models: `ls ~/.cache/llama.cpp/*.gguf`
 - Verify model path in configuration
 - Try with different quantization (Q4_K_M, Q8_0, etc.)
 
 **Out of memory errors:**
+
 - Check GPU VRAM: `nvidia-smi`
 - GLM-4.7 and qwen3-80b require A100 80GB GPUs
 - qwen3-30b models can use V100 32GB with 4 GPUs

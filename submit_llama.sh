@@ -15,10 +15,14 @@ QOS=""
 CPUS=8
 MEM="32G"
 GPUS=1
+GPU_TYPE=""
 NO_TIME_LIMIT=false
 CONTEXT_SIZE=131072
 N_GPU_LAYERS=-1
 EXTRA_ARGS=""
+NOTIFY_EMAIL=""
+NTFY_TOPIC=""
+NTFY_SERVER=""
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -59,6 +63,10 @@ while [[ $# -gt 0 ]]; do
             GPUS="$2"
             shift 2
             ;;
+        --gpu-type)
+            GPU_TYPE="$2"
+            shift 2
+            ;;
         --context|-c)
             CONTEXT_SIZE="$2"
             shift 2
@@ -69,6 +77,18 @@ while [[ $# -gt 0 ]]; do
             ;;
         --extra-args)
             EXTRA_ARGS="$2"
+            shift 2
+            ;;
+        --email)
+            NOTIFY_EMAIL="$2"
+            shift 2
+            ;;
+        --ntfy-topic)
+            NTFY_TOPIC="$2"
+            shift 2
+            ;;
+        --ntfy-server)
+            NTFY_SERVER="$2"
             shift 2
             ;;
         --list-configs)
@@ -100,16 +120,20 @@ while [[ $# -gt 0 ]]; do
             echo "  --cpus N            Number of CPUs (default: 8)"
             echo "  --mem SIZE          Memory allocation (default: 32G)"
             echo "  --gpus N            Number of GPUs (default: 1)"
+            echo "  --gpu-type TYPE     GPU type: a100, v100, p40 (default: from config or none)"
             echo "  --context N         Context size (default: 131072)"
             echo "  --gpu-layers N      GPU layers, -1 for all (default: -1)"
             echo "  --extra-args STR    Additional llama-server arguments"
+            echo "  --email EMAIL       Email address for notification (default: $USER@domain)"
+            echo "  --ntfy-topic TOPIC  Ntfy topic for push notifications (default: llama-servers)"
+            echo "  --ntfy-server URL   Ntfy server URL (default: https://ntfy.sh)"
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Examples:"
             echo "  $0 --config qwen3-30b                # Use saved config"
             echo "  $0 --model ~/.cache/llama.cpp/model.gguf"
             echo "  $0 --model model.gguf --gpus 2 --context 16384"
-            echo "  $0 --config glm-4.7 --no-time-limit"
+            echo "  $0 --config glm-4.7 --email user@example.com --ntfy-topic my-servers"
             exit 0
             ;;
         *)
@@ -169,15 +193,21 @@ if [ -n "$QOS" ]; then
     SBATCH_OPTS="${SBATCH_OPTS} --qos=${QOS}"
 fi
 
+# Build GPU resource string
+GPU_GRES="gpu:${GPUS}"
+if [ -n "$GPU_TYPE" ]; then
+    GPU_GRES="gpu:${GPU_TYPE}:${GPUS}"
+fi
+
 # Submit the job
 JOB_ID=$(sbatch ${SBATCH_OPTS} \
     --cpus-per-task="${CPUS}" \
     --mem="${MEM}" \
-    --gres="gpu:${GPUS}" \
+    --gres="${GPU_GRES}" \
     --output="llama_server_%j.log" \
     --error="llama_server_%j.err" \
     --job-name="llama-server" \
-    --export=ALL,MODEL_FILE="${MODEL_FILE}",CONTEXT_SIZE="${CONTEXT_SIZE}",N_GPU_LAYERS="${N_GPU_LAYERS}",EXTRA_ARGS="${EXTRA_ARGS}" \
+    --export=ALL,MODEL_FILE="${MODEL_FILE}",CONTEXT_SIZE="${CONTEXT_SIZE}",N_GPU_LAYERS="${N_GPU_LAYERS}",EXTRA_ARGS="${EXTRA_ARGS}",NOTIFY_EMAIL="${NOTIFY_EMAIL}",NTFY_TOPIC="${NTFY_TOPIC}",NTFY_SERVER="${NTFY_SERVER}" \
     "${SCRIPT_DIR}/llama_server.slurm" | awk '{print $4}')
 
 echo "Job submitted: $JOB_ID"
@@ -188,8 +218,12 @@ echo "Model path: $MODEL_FILE"
 echo "CPUs: $CPUS"
 echo "Memory: $MEM"
 echo "GPUs: $GPUS"
+[ -n "$GPU_TYPE" ] && echo "GPU type: $GPU_TYPE"
 echo "Context size: $CONTEXT_SIZE"
 echo "GPU layers: $N_GPU_LAYERS"
+[ -n "$NOTIFY_EMAIL" ] && echo "Notification email: $NOTIFY_EMAIL"
+[ -n "$NTFY_TOPIC" ] && echo "Ntfy topic: $NTFY_TOPIC"
+[ -n "$NTFY_SERVER" ] && echo "Ntfy server: $NTFY_SERVER"
 echo ""
 echo "Monitor job status:"
 echo "  squeue -j $JOB_ID"

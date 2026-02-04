@@ -108,6 +108,25 @@ done
 echo "llama.cpp server is ready!"
 echo ""
 
+# Register with central registry if available
+if [ -n "$REGISTRY_URL" ]; then
+    echo "Registering with server registry..."
+    "${SLURM_SUBMIT_DIR}/register_server.sh" "$SLURM_JOB_ID" "$HOST" "$PORT" "$MODEL_FILE" || true
+    echo ""
+fi
+
+# Send email notification
+echo "Sending email notification..."
+"${SLURM_SUBMIT_DIR}/send_notification.sh" "$SLURM_JOB_ID" "$HOST" "$PORT" "$MODEL_FILE" "$NOTIFY_EMAIL" || true
+echo ""
+
+# Send ntfy push notification
+if [ -n "$NTFY_TOPIC" ] || [ -n "$NTFY_SERVER" ]; then
+    echo "Sending ntfy push notification..."
+    "${SLURM_SUBMIT_DIR}/send_ntfy_notification.sh" "$SLURM_JOB_ID" "$HOST" "$PORT" "$MODEL_FILE" "$NTFY_TOPIC" || true
+    echo ""
+fi
+
 echo "=========================================="
 echo "llama.cpp server is running and ready!"
 echo "Host: $HOST"
@@ -124,10 +143,21 @@ echo "  source $CONNECTION_FILE"
 echo "  source setup_claude_env.sh"
 echo "  claude"
 echo ""
+if [ -n "$REGISTRY_URL" ]; then
+    echo "Also discoverable at:"
+    echo "  ${REGISTRY_URL}/servers"
+    echo ""
+fi
 
 # Keep the job running
 wait $SERVER_PID
 EXIT_CODE=$?
+
+# Unregister from central registry
+if [ -n "$REGISTRY_URL" ]; then
+    echo "Unregistering from server registry..."
+    curl -X DELETE "${REGISTRY_URL}/servers/${SLURM_JOB_ID}" --silent --show-error || true
+fi
 
 echo ""
 echo "=========================================="

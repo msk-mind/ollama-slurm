@@ -6,12 +6,13 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Default parameters
-TIME_LIMIT="4:00:00"
+TIME_LIMIT="8:00:00"
 MODEL="llama3.2"
 PARTITION=""
 CPUS=8
 MEM="32G"
 GPUS=1
+GPU_TYPE=""
 NO_TIME_LIMIT=false
 
 # Parse arguments
@@ -45,19 +46,24 @@ while [[ $# -gt 0 ]]; do
             GPUS="$2"
             shift 2
             ;;
+        --gpu-type)
+            GPU_TYPE="$2"
+            shift 2
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Submit Ollama server to SLURM for Claude CLI connection"
             echo ""
             echo "Options:"
-            echo "  --time TIME         Time limit (default: 4:00:00)"
+            echo "  --time TIME         Time limit (default: 8:00:00)"
             echo "  --no-time-limit     Remove time limit"
             echo "  --model MODEL       Ollama model to use (default: llama3.2)"
             echo "  --partition PART    SLURM partition (default: none)"
             echo "  --cpus N            Number of CPUs (default: 8)"
             echo "  --mem SIZE          Memory allocation (default: 32G)"
             echo "  --gpus N            Number of GPUs (default: 1)"
+            echo "  --gpu-type TYPE     GPU type: a100, v100, p40 (default: none)"
             echo "  --help, -h          Show this help message"
             echo ""
             echo "Examples:"
@@ -89,11 +95,17 @@ if [ -n "$PARTITION" ]; then
     SBATCH_OPTS="${SBATCH_OPTS} --partition=${PARTITION}"
 fi
 
+# Build GPU resource string
+GPU_GRES="gpu:${GPUS}"
+if [ -n "$GPU_TYPE" ]; then
+    GPU_GRES="gpu:${GPU_TYPE}:${GPUS}"
+fi
+
 # Submit the job
 JOB_ID=$(sbatch ${SBATCH_OPTS} \
     --cpus-per-task="${CPUS}" \
     --mem="${MEM}" \
-    --gres="gpu:${GPUS}" \
+    --gres="${GPU_GRES}" \
     --output="ollama_server_%j.log" \
     --error="ollama_server_%j.err" \
     --job-name="ollama-server" \
@@ -106,6 +118,7 @@ echo "Model: $MODEL"
 echo "CPUs: $CPUS"
 echo "Memory: $MEM"
 echo "GPUs: $GPUS"
+[ -n "$GPU_TYPE" ] && echo "GPU type: $GPU_TYPE"
 echo ""
 echo "Monitor job status:"
 echo "  squeue -j $JOB_ID"
