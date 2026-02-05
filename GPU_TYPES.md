@@ -7,75 +7,50 @@ The cluster has three GPU types available with different memory and availability
 | GPU Type | Memory | Max per Node | Best For |
 |----------|--------|--------------|----------|
 | **A100** | 80 GB  | 4            | Large models, high memory requirements (preferred) |
-| **V100** | 16 GB  | 4            | Smaller models, can use multiple GPUs |
-| **P40**  | 23 GB  | 1            | Small-medium single-GPU models only |
+| **V100** | 16 GB  | 4            | Smaller models with reduced context, multi-GPU splits |
+| **P40**  | 24 GB  | 1            | Small single-GPU models with limited context |
 
 ## GPU Selection Strategy
 
 - **A100s are preferred** for most workloads due to their large 80GB memory
-- **P40s are limited to 1 per node** - only suitable for small models that fit in 23GB
-- **V100s can be used for multi-GPU jobs** when A100s are unavailable, but have only 16GB each
+- **V100s can be used for multi-GPU jobs** when A100s are unavailable, but context size must be reduced
+- **P40s are limited to 1 per node** - only suitable for models that fit in 24GB with small context windows
 
-## Using GPU Types
+## Model Configs
 
-### In Model Configs
+Each model has separate config files per GPU type: `model_configs/<model>.<gpu_type>.conf`
 
-All model configs now include a `GPU_TYPE` parameter:
+### Available Profiles
 
-```bash
-GPU_TYPE="a100"  # a100 (80GB), v100 (16GB), or p40 (23GB, max 1/node)
-```
+| Config | GPUs | Context | VRAM/GPU | Notes |
+|--------|------|---------|----------|-------|
+| **qwen3-30b.a100** | 1x A100 | 128K | ~44GB | Full context, single GPU |
+| **qwen3-30b.v100** | 4x V100 | 64K | ~7.75GB | Reduced context |
+| **qwen3-30b.p40** | 1x P40 | 16K | ~21.25GB | Limited context |
+| **qwen3-80b.a100** | 4x A100 | 128K | ~24.75GB | A100 only - too large for V100/P40 |
+| **qwen3-coder-30b.a100** | 1x A100 | 128K | ~58GB | Q8_0 quant, single GPU |
+| **qwen3-coder-30b.v100** | 4x V100 | 32K | ~9.6GB | Reduced context, P40 too small |
+| **glm-4.7.a100** | 2x A100 | 128K | -- | DeepSeek2 MLA + 64 experts, needs >80GB |
 
-### Command Line Override
-
-You can override the GPU type from the config:
-
-```bash
-./submit_llama.sh --config qwen3-30b --gpu-type v100 --gpus 4
-```
-
-Or specify when not using a config:
+## Usage
 
 ```bash
-./submit_llama.sh --model model.gguf --gpu-type a100 --gpus 2
+# A100 profiles (full context)
+./submit_llama.sh --config qwen3-30b.a100
+./submit_llama.sh --config qwen3-80b.a100
+./submit_llama.sh --config qwen3-coder-30b.a100
+./submit_llama.sh --config glm-4.7.a100
+
+# V100 profiles (reduced context)
+./submit_llama.sh --config qwen3-30b.v100
+./submit_llama.sh --config qwen3-coder-30b.v100
+# P40 profiles (limited context)
+./submit_llama.sh --config qwen3-30b.p40
 ```
 
-### For Ollama
+## Why Some Models Don't Have V100/P40 Profiles
 
-```bash
-./submit_ollama.sh --model llama3.2 --gpu-type a100 --gpus 1
-```
-
-## Model Requirements
-
-### Current Model Configs
-
-| Model | GPUs | GPU Type | Memory Needed | Notes |
-|-------|------|----------|---------------|-------|
-| **qwen3-30b** | 2 | a100 | ~31GB/GPU | Can use 4x v100 but not recommended |
-| **qwen3-80b** | 4 | a100 | ~60GB/GPU | A100 only - won't fit on v100/p40 |
-| **qwen3-coder-30b** | 2 | a100 | ~45GB/GPU | Q8_0 quant, A100 only |
-| **glm-4.7** | 2 | a100 | ~29GB/GPU | Needs 2 GPUs, p40 limited to 1/node |
-
-### P40 Limitations
-
-Since P40 is limited to 1 GPU per node with 23GB, it's only suitable for:
-- Small models (<20GB total with KV cache)
-- Single GPU inference
-- Not recommended for multi-GPU models in the current configs
-
-## Examples
-
-```bash
-# Use config with default A100s
-./submit_llama.sh --config qwen3-30b
-
-# Override to use V100s (needs 4 instead of 2 A100s)
-./submit_llama.sh --config qwen3-30b --gpu-type v100 --gpus 4
-
-# Single P40 for small model
-./submit_llama.sh --model small-model.gguf --gpu-type p40 --gpus 1
-
-# Explicitly request A100s
-./submit_llama.sh --config qwen3-80b --gpu-type a100
-```
+- **qwen3-80b**: 47GB model exceeds 64GB total of 4x V100 with any usable context
+- **qwen3-coder-30b on P40**: 32GB Q8_0 model exceeds 24GB P40 VRAM
+- **qwen3-80b on P40**: 47GB model far exceeds 24GB P40 VRAM
+- **glm-4.7 on V100/P40**: DeepSeek2 MLA architecture with 64 experts needs >80GB VRAM; reduced context on V100/P40 is too small for Claude CLI
