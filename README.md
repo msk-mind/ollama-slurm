@@ -115,7 +115,7 @@ Model configurations are stored in `model_configs/*.conf`. Each config sets opti
 
 **Server settings (all models):**
 
-- Context: 131072 tokens (128K)
+- Context: 131072 tokens (128K) on A100 profiles — **minimum 32K needed for Claude CLI, 128K strongly recommended**
 - Batch size: 32768
 - Ubatch: 1024
 - Parallel slots: 1
@@ -137,19 +137,25 @@ EOF
 
 **Available configurations:**
 
-| Config | Model | GPUs | Memory | GPU Requirements | Notes |
-|--------|-------|------|--------|------------------|-------|
-| `qwen3-30b` | Qwen3 30B Q4_K_M | 2 | 64G | 2x A100 80GB or 4x V100 32GB | ~18GB model + 13GB KV cache/GPU |
-| `qwen3-coder-30b` | Qwen3 Coder 30B Q8_0 | 2 | 64G | 2x A100 80GB or 4x V100 32GB | ~32GB model + 13GB KV cache/GPU |
-| `qwen3-80b` | Qwen3 80B Q4_K_XL | 4 | 128G | 4x A100 80GB only | ~47GB model + 13GB KV cache/GPU |
-| `glm-4.7` | GLM-4.7 Flash Q4_K_M | 2 | 32G | 2x A100 80GB only | ~16GB model + 13GB KV cache/GPU, DeepSeek2 gating |
+| Config | Model | GPUs | Context | GPU Requirements | Notes |
+|--------|-------|------|---------|------------------|-------|
+| `qwen3-30b.a100` | Qwen3 30B Q4_K_M | 1 | 128K | 1x A100 80GB | ~44GB VRAM |
+| `qwen3-30b.v100` | Qwen3 30B Q4_K_M | 4 | 64K | 4x V100 16GB | ⚠️ Reduced context |
+| `qwen3-30b.p40` | Qwen3 30B Q4_K_M | 1 | 16K | 1x P40 24GB | ❌ Too small for Claude CLI |
+| `qwen3-coder-30b.a100` | Qwen3 Coder 30B Q8_0 | 1 | 128K | 1x A100 80GB | ~58GB VRAM |
+| `qwen3-coder-30b.v100` | Qwen3 Coder 30B Q8_0 | 4 | 32K | 4x V100 16GB | ⚠️ Marginal context |
+| `qwen3-next-80b.a100` | Qwen3-Next 80B Q4_K_XL | 4 | 128K | 4x A100 80GB | Instruct, ~47GB model |
+| `qwen3-next-80b.a100.thinking` | Qwen3-Next 80B Q4_K_XL | 4 | 128K | 4x A100 80GB | Thinking variant, emits `<think>` traces |
+| `glm-4.7.a100` | GLM-4.7 Flash Q4_K_M | 2 | 128K | 2x A100 80GB | DeepSeek2 MLA, ~16GB model |
+| `glm-z1-32b.a100` | GLM-Z1 32B Q4_K_M | 1 | 128K | 1x A100 80GB | Dense reasoning model, emits `<think>` traces |
+| `glm-z1-32b.v100` | GLM-Z1 32B Q4_K_M | 4 | 32K | 4x V100 16GB | ⚠️ Native 32K limit — marginal for Claude CLI |
 
 **GPU VRAM Notes:**
 
-- **A100 80GB**: Can run all configurations
-- **V100 32GB**: Can run qwen3-30b and qwen3-coder-30b with 4 GPUs, NOT glm-4.7 or qwen3-80b
-- **V100 16GB**: Not recommended for these models with 128K context
-- KV cache at 128K context requires ~13GB VRAM per GPU for all models
+- **A100 80GB**: Can run all configurations at full context — **recommended for Claude CLI**
+- **V100 16GB**: Multi-GPU split with reduced context; 32K–64K context is the functional minimum for Claude CLI
+- **P40 24GB**: 16K context only — too small for Claude CLI in practice
+- KV cache at 128K context requires ~13GB VRAM per GPU; reduced context profiles use proportionally less
 
 ### Connect Claude CLI
 
