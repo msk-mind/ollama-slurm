@@ -54,7 +54,7 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
    claude
    ```
 
-See [REGISTRY_SETUP.md](REGISTRY_SETUP.md) for registry server setup.
+See [REGISTRY_SETUP.md](docs/REGISTRY_SETUP.md) for registry server setup.
 
 ## Usage
 
@@ -224,16 +224,28 @@ scancel <job_id>
 
 ## Server Discovery & Registry
 
-**NEW**: Central registry service for discovering servers without shared filesystem access.
+Central registry service for discovering servers without shared filesystem access.
 
-To enable, set the registry URL:
+**Deploy the registry** (pick one):
+
+```bash
+# Systemd (production, as root)
+sudo ./install_registry.sh
+
+# Docker
+docker build -t llama-registry . && \
+  docker run -d --name llama-registry --restart unless-stopped \
+    -p 5000:5000 -v llama-registry-data:/data llama-registry
+```
+
+**Enable auto-registration** in SLURM jobs:
 
 ```bash
 export REGISTRY_URL="http://your-registry-server:5000"
 ./submit_llama.sh --config qwen3-30b
 ```
 
-Servers will auto-register on startup and unregister on shutdown. See [REGISTRY_SETUP.md](REGISTRY_SETUP.md) for full setup guide.
+Servers auto-register on startup and unregister on shutdown. See [REGISTRY_SETUP.md](docs/REGISTRY_SETUP.md) for the full setup guide.
 
 ## Email Notifications
 
@@ -308,14 +320,15 @@ open https://ntfy.sh/my-llama-servers
 - `llama_server.slurm` - SLURM batch script that runs llama.cpp server
 - `connect_claude_llama.sh` - Connect Claude CLI to running llama.cpp server
 - `setup_claude_env.sh` - Environment configuration for Claude CLI
+- `register_server.sh` - Auto-register servers with registry (called by SLURM job)
+- `send_notification.sh` - Email notification when server is ready
+- `send_ntfy_notification.sh` - Push notification via ntfy
 - `model_configs/*.conf` - Model configuration files
 - `llama_server_connection_<job_id>.txt` - Auto-generated connection info
-- **`registry_server.py`** - Central registry service
-- **`register_server.sh`** - Auto-register servers with registry
-- **`list_servers.sh`** - List available servers from registry
-- **`send_notification.sh`** - Email notification when server is ready
-- **`send_ntfy_notification.sh`** - Push notification via ntfy
-- **`REGISTRY_SETUP.md`** - Registry setup and usage guide
+- `list_servers.sh` - List available servers from registry
+- **`registry/`** - Registry server (Flask app, Dockerfile, systemd service, install script)
+- **`tests/`** - Test suite (`test_registry.py`, `test_registry.sh`)
+- **`docs/`** - Extended documentation
 
 ## Requirements
 
@@ -326,7 +339,8 @@ open https://ntfy.sh/my-llama-servers
   - See [llama.cpp compilation guide](https://github.com/ggml-org/llama.cpp?tab=readme-ov-file#cuda)
 - GGUF model files in `~/.cache/llama.cpp/`
 - Claude CLI installed
-- Python 3 (for port selection)
+- Python 3 (for port selection and registry server)
+- Flask >= 2.0.0 (for registry server — install with `pip install -r requirements.txt`)
 - curl (for health checks)
 - NVIDIA GPUs with CUDA support
   - **A100 80GB**: Recommended, supports all model configurations

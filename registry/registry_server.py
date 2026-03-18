@@ -17,7 +17,10 @@ app = Flask(__name__)
 servers = {}
 lock = threading.Lock()
 
-REGISTRY_FILE = os.path.expanduser("~/.cache/llama_server_registry.json")
+REGISTRY_FILE = os.environ.get(
+    "REGISTRY_FILE",
+    os.path.expanduser("~/.cache/llama_server_registry.json")
+)
 CLEANUP_INTERVAL = 300  # 5 minutes
 MAX_AGE_HOURS = 48
 

@@ -9,7 +9,8 @@ echo ""
 
 # Start registry server in background
 echo "Starting registry server..."
-./registry_server.py --host 127.0.0.1 --port 5555 &
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+python3 "$REPO_ROOT/registry/registry_server.py" --host 127.0.0.1 --port 5555 &
 REGISTRY_PID=$!
 export REGISTRY_URL="http://127.0.0.1:5555"
 
@@ -39,7 +40,7 @@ echo ""
 
 # Test server registration
 echo "3. Testing server registration..."
-./register_server.sh "test-job-123" "test-node" "12345" "/path/to/model.gguf"
+"$REPO_ROOT/register_server.sh" "test-job-123" "test-node" "12345" "/path/to/model.gguf"
 echo ""
 
 # Test listing servers
@@ -59,7 +60,7 @@ echo ""
 
 # Test list_servers.sh script
 echo "7. Testing list_servers.sh script..."
-./list_servers.sh
+"$REPO_ROOT/list_servers.sh"
 echo ""
 
 # Test server deletion

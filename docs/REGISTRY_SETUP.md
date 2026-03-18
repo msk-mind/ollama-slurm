@@ -11,51 +11,68 @@ A central registry service that allows users to discover running llama.cpp serve
 
 ## Setup Registry Server
 
-### Option 1: Run as systemd service (Production)
+### Option 1: Automated install as systemd service (Production)
 
-1. Copy files to a shared location:
+Run the included install script as root — it handles all steps automatically:
+
 ```bash
-sudo mkdir -p /opt/llama-registry
-sudo cp registry_server.py /opt/llama-registry/
-sudo cp llama-registry.service /etc/systemd/system/
+sudo ./install_registry.sh
 ```
 
-2. Install dependencies:
+This installs Flask from `requirements.txt`, copies files to `/opt/llama-registry/`, creates a writable data directory at `/opt/llama-registry/data/`, and enables the service.
+
+To verify:
 ```bash
-sudo pip3 install flask
+systemctl status llama-registry
+curl http://localhost:5000/health
 ```
 
-3. Edit the service file if needed (change user, port, etc.)
-
-4. Enable and start:
+To view logs:
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable llama-registry
-sudo systemctl start llama-registry
-sudo systemctl status llama-registry
+journalctl -u llama-registry -f
 ```
 
-### Option 2: Run manually (Testing)
+### Option 2: Docker (Recommended for containers)
 
 ```bash
-# Install Flask if needed
-pip3 install flask
+# Build the image
+docker build -t llama-registry .
+
+# Run with a named volume for persistence
+docker run -d \
+  --name llama-registry \
+  --restart unless-stopped \
+  -p 5000:5000 \
+  -v llama-registry-data:/data \
+  llama-registry
+```
+
+Check health:
+```bash
+curl http://localhost:5000/health
+```
+
+### Option 3: Run manually (Testing)
+
+```bash
+# Install dependencies
+pip3 install -r requirements.txt
 
 # Run the server
-./registry_server.py --host 0.0.0.0 --port 5000
+python3 registry_server.py --host 0.0.0.0 --port 5000
 
 # Or run in background
-nohup ./registry_server.py --host 0.0.0.0 --port 5000 > registry.log 2>&1 &
+nohup python3 registry_server.py --host 0.0.0.0 --port 5000 > registry.log 2>&1 &
 ```
 
-### Option 3: Run in SLURM (if no dedicated server available)
+### Option 4: Run in SLURM (if no dedicated server available)
 
 ```bash
 sbatch --job-name=llama-registry \
        --time=7-00:00:00 \
        --mem=2G \
        --cpus-per-task=2 \
-       --wrap="./registry_server.py --host 0.0.0.0 --port 5000"
+       --wrap="python3 registry_server.py --host 0.0.0.0 --port 5000"
 ```
 
 ## Configure Clients
@@ -236,17 +253,24 @@ tail -f registry.log
 
 ## Backup and Persistence
 
-The registry stores data in `~/.cache/llama_server_registry.json` (or `/opt/llama-registry/` if running as service).
+The registry stores data in:
 
-To backup:
+| Deployment | Registry file |
+|------------|--------------|
+| systemd service | `/opt/llama-registry/data/registry.json` |
+| Docker | `/data/registry.json` (inside the volume) |
+| Manual / default | `~/.cache/llama_server_registry.json` |
+
+The path can be overridden with the `REGISTRY_FILE` environment variable.
+
+To backup (systemd):
 ```bash
-cp ~/.cache/llama_server_registry.json ~/backup/
+cp /opt/llama-registry/data/registry.json ~/backup/
 ```
 
 To restore:
 ```bash
-cp ~/backup/llama_server_registry.json ~/.cache/
-# Restart the service
+cp ~/backup/registry.json /opt/llama-registry/data/
 sudo systemctl restart llama-registry
 ```
 
