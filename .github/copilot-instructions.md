@@ -78,7 +78,11 @@ docs/                             # Extended documentation (REGISTRY_SETUP.md, G
 | `qwen3-coder-30b.a100` | 1× A100 | 128K | ~58 GB | Q8_0 quant |
 | `qwen3-coder-30b.v100` | 4× V100 | 32K | ~9.6 GB | No P40 (32 GB model > 24 GB) |
 | `qwen3-80b.a100` | 4× A100 | 128K | ~24.75 GB | A100 only (47 GB model > 4×V100) |
+| `qwen3-next-80b.a100` | 4× A100 | 128K | ~24.75 GB | Instruct (no traces) |
+| `qwen3-next-80b.a100.thinking` | 4× A100 | 128K | ~24.75 GB | Thinking variant; lower temp, larger output budget |
 | `glm-4.7.a100` | 2× A100 | 128K | — | DeepSeek2 MLA + 64 experts, needs >80 GB total |
+| `glm-z1-32b.a100` | 1× A100 | 128K | ~45 GB | Dense 32B reasoning model |
+| `glm-z1-32b.v100` | 4× V100 | 64K | ~8 GB | Reduced context |
 
 **Why some profiles don't exist:**
 - `qwen3-80b` on V100/P40 — 47 GB model exceeds 64 GB (4× V100) with any usable context

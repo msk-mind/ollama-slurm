@@ -30,7 +30,11 @@ Each model has separate config files per GPU type: `model_configs/<model>.<gpu_t
 | **qwen3-80b.a100** | 4x A100 | 128K | ~24.75GB | A100 only - too large for V100/P40 |
 | **qwen3-coder-30b.a100** | 1x A100 | 128K | ~58GB | Q8_0 quant, single GPU |
 | **qwen3-coder-30b.v100** | 4x V100 | 32K | ~9.6GB | Reduced context, P40 too small |
-| **glm-4.7.a100** | 2x A100 | 128K | -- | DeepSeek2 MLA + 64 experts, needs >80GB |
+| **qwen3-next-80b.a100** | 4x A100 | 128K | ~24.75GB | Instruct variant (no reasoning traces) |
+| **qwen3-next-80b.a100.thinking** | 4x A100 | 128K | ~24.75GB | Thinking variant — emits `<think>` traces; lower temp, larger output budget |
+| **glm-4.7.a100** | 2x A100 | 128K | — | DeepSeek2 MLA + 64 experts, needs >80GB |
+| **glm-z1-32b.a100** | 1x A100 | 128K | ~45GB | Dense 32B reasoning model, emits `<think>` traces |
+| **glm-z1-32b.v100** | 4x V100 | 64K | ~8GB | Reduced context |
 
 ## Usage
 
@@ -40,17 +44,24 @@ Each model has separate config files per GPU type: `model_configs/<model>.<gpu_t
 ./submit_llama.sh --config qwen3-80b.a100
 ./submit_llama.sh --config qwen3-coder-30b.a100
 ./submit_llama.sh --config glm-4.7.a100
+./submit_llama.sh --config qwen3-next-80b.a100
+./submit_llama.sh --config qwen3-next-80b.a100.thinking  # reasoning traces enabled
+./submit_llama.sh --config glm-z1-32b.a100
 
 # V100 profiles (reduced context)
 ./submit_llama.sh --config qwen3-30b.v100
 ./submit_llama.sh --config qwen3-coder-30b.v100
+./submit_llama.sh --config glm-z1-32b.v100
+
 # P40 profiles (limited context)
 ./submit_llama.sh --config qwen3-30b.p40
 ```
 
 ## Why Some Models Don't Have V100/P40 Profiles
 
-- **qwen3-80b**: 47GB model exceeds 64GB total of 4x V100 with any usable context
+- **qwen3-80b / qwen3-next-80b**: 47GB model exceeds 64GB total of 4x V100 with any usable context
 - **qwen3-coder-30b on P40**: 32GB Q8_0 model exceeds 24GB P40 VRAM
 - **qwen3-80b on P40**: 47GB model far exceeds 24GB P40 VRAM
 - **glm-4.7 on V100/P40**: DeepSeek2 MLA architecture with 64 experts needs >80GB VRAM; reduced context on V100/P40 is too small for Claude CLI
+- **glm-z1-32b on P40**: ~19GB model requires tensor parallelism across GPUs, not available with a single P40
+- **Qwen3-235B-A22B**: ~142GB Q4_K_M — too large for current cluster (4x A100 = 320GB leaves insufficient headroom for 128K KV cache)
