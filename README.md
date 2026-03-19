@@ -27,10 +27,11 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
    tail -f llama_server_<job_id>.log
    ```
 
-3. **Connect Claude CLI to the server:**
+3. **Connect an AI coding assistant to the server:**
 
    ```bash
-   ./connect_claude_llama.sh <job_id>
+   ./connect_claude_llama.sh <job_id>    # Claude CLI
+   ./connect_openclaw_llama.sh <job_id>  # OpenClaw
    ```
 
 ### For Users Without Shared Filesystem Access
@@ -157,48 +158,54 @@ EOF
 - **P40 24GB**: 16K context only — too small for Claude CLI in practice
 - KV cache at 128K context requires ~13GB VRAM per GPU; reduced context profiles use proportionally less
 
-### Connect Claude CLI
+### Connect an AI Coding Assistant
+
+The llama.cpp server exposes an OpenAI-compatible API, so any OpenAI-compatible client works. Two are supported out of the box:
+
+| Client | Script | Env setup |
+|--------|--------|-----------|
+| **Claude CLI** (`claude`) | `connect_claude_llama.sh` | `setup_claude_env.sh` |
+| **OpenClaw** (`openclaw`) | `connect_openclaw_llama.sh` | `setup_openclaw_env.sh` |
+
+#### Claude CLI
 
 ```bash
 ./connect_claude_llama.sh <job_id> [working_directory]
-```
 
-**Arguments:**
-
-- `job_id` - SLURM job ID of the running llama.cpp server
-- `working_directory` - Optional directory where Claude should run (default: current directory)
-
-**Examples:**
-
-```bash
-# Connect from current directory
-./connect_claude.sh 2883398
-
-# Connect and work in a specific directory
+# Examples
+./connect_claude_llama.sh 2883398
 ./connect_claude_llama.sh 2883398 /path/to/my/project
-
-# Pass additional arguments to Claude
 ./connect_claude_llama.sh 2883398 ~/code --resume abc123
 ```
 
-**Note**: On first connection to a directory, Claude will ask you to confirm trust of the workspace. Make sure to run `connect_claude_llama.sh` from an interactive terminal (not a script). If you see the "trust this folder" prompt, select "Yes" to continue. You can also pre-approve with: `claude trust /path/to/workspace`
+**Note**: On first connection to a directory, Claude will ask you to confirm trust of the workspace. You can pre-approve with: `claude trust /path/to/workspace`
 
-**Known Issue**: Some directories may cause Claude to hang indefinitely when connecting to local llama.cpp servers, even though they work fine with Anthropic's API. This appears to be a Claude Code bug with certain directory configurations. If you experience this, try:
+**Known Issue**: Some directories may cause Claude to hang indefinitely with local llama.cpp servers. If this happens, try a different working directory or use the official Anthropic API for that directory.
 
-1. Use a different working directory that doesn't have the issue
-2. Start Claude in a working directory, then access problematic directory files as needed
-3. Use Claude with the official Anthropic API for those directories
+#### OpenClaw
 
-Lists active llama.cpp server jobs if no job ID is provided.
+```bash
+./connect_openclaw_llama.sh <job_id> [working_directory]
+
+# Examples
+./connect_openclaw_llama.sh 2883398
+./connect_openclaw_llama.sh 2883398 /path/to/my/project
+```
 
 ### Manual Connection
 
-If you prefer to connect manually:
+If you prefer to set environment variables yourself:
 
 ```bash
 source llama_server_connection_<job_id>.txt
+
+# Claude CLI
 source setup_claude_env.sh
 claude
+
+# OpenClaw
+source setup_openclaw_env.sh
+openclaw
 ```
 
 ## Managing Jobs
@@ -326,6 +333,8 @@ open https://ntfy.sh/my-llama-servers
 - `llama_server.slurm` - SLURM batch script that runs llama.cpp server
 - `connect_claude_llama.sh` - Connect Claude CLI to running llama.cpp server
 - `setup_claude_env.sh` - Environment configuration for Claude CLI
+- `connect_openclaw_llama.sh` - Connect OpenClaw CLI to running llama.cpp server
+- `setup_openclaw_env.sh` - Environment configuration for OpenClaw
 - `register_server.sh` - Auto-register servers with registry (called by SLURM job)
 - `send_notification.sh` - Email notification when server is ready
 - `send_ntfy_notification.sh` - Push notification via ntfy
