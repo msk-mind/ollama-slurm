@@ -1,0 +1,12 @@
+{
+  "name": "local-ai-compute-broker",
+  "transport": {
+    "type": "stdio",
+    "command": "./examples/mcp-clients/run_broker_mcp.sh",
+    "args": [],
+    "env": {
+      "BROKER_SLURM_MODE": "stub"
+    }
+  }
+}
+

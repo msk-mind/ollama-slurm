@@ -81,7 +81,7 @@ Check job status:
   squeue -j $JOB_ID
 
 View logs:
-  tail -f llama_server_${JOB_ID}.log
+  tail -f ${SLURM_SUBMIT_DIR}/llama_server_${JOB_ID}.log
 
 Cancel job:
   scancel $JOB_ID

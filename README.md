@@ -1,6 +1,38 @@
-# llama.cpp SLURM Integration for Claude CLI
+# Local AI Compute Broker on Slurm
 
-Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
+This repository now has two layers:
+
+- a legacy set of Slurm and local-model helper scripts
+- an in-progress local AI compute broker for MCP-capable agents under `broker/`
+
+The broker direction is the primary project trajectory:
+
+- frontier remote models remain the orchestrators
+- local cluster jobs perform token-heavy analysis
+- only compact structured outputs should flow back to the remote model by default
+
+Start here for the broker project:
+
+- [docs/README.md](docs/README.md)
+- [docs/quickstart.md](docs/quickstart.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/rag-compression.md](docs/rag-compression.md)
+- [docs/mcp-tools.md](docs/mcp-tools.md)
+- [docs/roadmap.md](docs/roadmap.md)
+
+Smoke validation:
+
+- `bash tests/e2e/run_smoke_suite.sh`
+- `bash tests/e2e/run_smoke_suite.sh --with-loopback-bind` for the fake-`llama.cpp` RAG runtime path
+
+Verified MCP client status:
+
+- Codex CLI can call the broker MCP tools and submit real Slurm-backed `rag_compress` jobs.
+- GitHub Copilot CLI wiring is still not verified end-to-end and should be treated as experimental.
+
+Legacy llama.cpp workflow:
+
+Scripts to run llama.cpp server on SLURM and connect Claude CLI to it remain in this repository while the broker architecture is being built.
 
 **Features:**
 
@@ -18,7 +50,7 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
 1. **Submit llama.cpp server with a saved configuration:**
 
    ```bash
-   ./submit_llama.sh --config qwen3-30b
+   deploy/slurm/submit_llama.sh --config qwen3-30b
    ```
 
 2. **Wait for server to start (check logs):**
@@ -27,11 +59,10 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
    tail -f llama_server_<job_id>.log
    ```
 
-3. **Connect an AI coding assistant to the server:**
+3. **Connect Claude CLI to the server:**
 
    ```bash
-   ./connect_claude_llama.sh <job_id>    # Claude CLI
-   ./connect_openclaw_llama.sh <job_id>  # OpenClaw
+   deploy/slurm/connect_claude_llama.sh <job_id>
    ```
 
 ### For Users Without Shared Filesystem Access
@@ -55,14 +86,14 @@ Scripts to run llama.cpp server on SLURM and connect Claude CLI to it.
    claude
    ```
 
-See [REGISTRY_SETUP.md](docs/REGISTRY_SETUP.md) for registry server setup.
+See [REGISTRY_SETUP.md](REGISTRY_SETUP.md) for registry server setup.
 
 ## Usage
 
 ### Submit llama.cpp Server
 
 ```bash
-./submit_llama.sh [OPTIONS]
+deploy/slurm/submit_llama.sh [OPTIONS]
 ```
 
 **Options:**
@@ -89,25 +120,25 @@ See [REGISTRY_SETUP.md](docs/REGISTRY_SETUP.md) for registry server setup.
 
 ```bash
 # Use saved configuration
-./submit_llama.sh --config qwen3-30b
+deploy/slurm/submit_llama.sh --config qwen3-30b
 
 # List available configurations
-./submit_llama.sh --list-configs
+deploy/slurm/submit_llama.sh --list-configs
 
 # No time limit with saved config
-./submit_llama.sh --config glm-4.7 --no-time-limit
+deploy/slurm/submit_llama.sh --config glm-4.7 --no-time-limit
 
 # With email notification
-./submit_llama.sh --config qwen3-30b --email user@example.com
+deploy/slurm/submit_llama.sh --config qwen3-30b --email user@example.com
 
 # With ntfy push notification
-./submit_llama.sh --config qwen3-30b --ntfy-topic my-llama-servers
+deploy/slurm/submit_llama.sh --config qwen3-30b --ntfy-topic my-llama-servers
 
 # Custom model file
-./submit_llama.sh --model ~/.cache/llama.cpp/model.gguf
+deploy/slurm/submit_llama.sh --model ~/.cache/llama.cpp/model.gguf
 
 # Custom settings
-./submit_llama.sh --model model.gguf --gpus 2 --context 16384
+deploy/slurm/submit_llama.sh --model model.gguf --gpus 2 --context 16384
 ```
 
 ### Model Configurations
@@ -116,7 +147,7 @@ Model configurations are stored in `model_configs/*.conf`. Each config sets opti
 
 **Server settings (all models):**
 
-- Context: 131072 tokens (128K) on A100 profiles — **minimum 32K needed for Claude CLI, 128K strongly recommended**
+- Context: 131072 tokens (128K)
 - Batch size: 32768
 - Ubatch: 1024
 - Parallel slots: 1
@@ -138,74 +169,85 @@ EOF
 
 **Available configurations:**
 
-| Config | Model | GPUs | Context | GPU Requirements | Notes |
-|--------|-------|------|---------|------------------|-------|
-| `qwen3-30b.a100` | Qwen3 30B Q4_K_M | 1 | 128K | 1x A100 80GB | ~44GB VRAM |
-| `qwen3-30b.v100` | Qwen3 30B Q4_K_M | 4 | 64K | 4x V100 16GB | ⚠️ Reduced context |
-| `qwen3-30b.p40` | Qwen3 30B Q4_K_M | 1 | 16K | 1x P40 24GB | ❌ Too small for Claude CLI |
-| `qwen3-coder-30b.a100` | Qwen3 Coder 30B Q8_0 | 1 | 128K | 1x A100 80GB | ~58GB VRAM |
-| `qwen3-coder-30b.v100` | Qwen3 Coder 30B Q8_0 | 4 | 32K | 4x V100 16GB | ⚠️ Marginal context |
-| `qwen3-next-80b.a100` | Qwen3-Next 80B Q4_K_XL | 4 | 128K | 4x A100 80GB | Instruct, ~47GB model |
-| `qwen3-next-80b.a100.thinking` | Qwen3-Next 80B Q4_K_XL | 4 | 128K | 4x A100 80GB | Thinking variant, emits `<think>` traces |
-| `glm-4.7.a100` | GLM-4.7 Flash Q4_K_M | 2 | 128K | 2x A100 80GB | DeepSeek2 MLA, ~16GB model |
-| `glm-z1-32b.a100` | GLM-Z1 32B Q4_K_M | 1 | 128K | 1x A100 80GB | Dense reasoning model, emits `<think>` traces |
-| `glm-z1-32b.v100` | GLM-Z1 32B Q4_K_M | 4 | 32K | 4x V100 16GB | ⚠️ Native 32K limit — marginal for Claude CLI |
+| Config | Model | GPUs | Memory | GPU Requirements | Notes |
+|--------|-------|------|--------|------------------|-------|
+| `gpt-oss-20b.p40` | GPT-OSS 20B MXFP4 | 1 | 32G | 1x P40 24GB | 64K context, smaller/faster single-GPU P40 profile |
+| `qwen3-30b` | Qwen3 30B Q4_K_M | 2 | 64G | 2x A100 80GB or 4x V100 32GB | ~18GB model + 13GB KV cache/GPU |
+| `qwen3-30b.p40` | Qwen3 30B Q4_K_M | 1 | 32G | 1x P40 24GB | 16K context, reduced batch for 24GB cards |
+| `qwen3-coder-30b` | Qwen3 Coder 30B Q8_0 | 2 | 64G | 2x A100 80GB or 4x V100 32GB | ~32GB model + 13GB KV cache/GPU |
+| `qwen3-80b` | Qwen3 80B Q4_K_XL | 4 | 128G | 4x A100 80GB only | ~47GB model + 13GB KV cache/GPU |
+| `glm-4.7` | GLM-4.7 Flash Q4_K_M | 2 | 32G | 2x A100 80GB only | ~16GB model + 13GB KV cache/GPU, DeepSeek2 gating |
 
 **GPU VRAM Notes:**
 
-- **A100 80GB**: Can run all configurations at full context — **recommended for Claude CLI**
-- **V100 16GB**: Multi-GPU split with reduced context; 32K–64K context is the functional minimum for Claude CLI
-- **P40 24GB**: 16K context only — too small for Claude CLI in practice
-- KV cache at 128K context requires ~13GB VRAM per GPU; reduced context profiles use proportionally less
+- **A100 80GB**: Can run all configurations
+- **V100 32GB**: Can run qwen3-30b and qwen3-coder-30b with 4 GPUs, NOT glm-4.7 or qwen3-80b
+- **V100 16GB**: Not recommended for these models with 128K context
+- **P40 24GB**: Best fits here are `gpt-oss-20b.p40` for a smaller/faster 64K profile and `qwen3-30b.p40` for a larger 16K profile
+- KV cache at 128K context requires ~13GB VRAM per GPU for all models
 
-### Connect an AI Coding Assistant
-
-The llama.cpp server exposes an OpenAI-compatible API, so any OpenAI-compatible client works. Two are supported out of the box:
-
-| Client | Script | Env setup |
-|--------|--------|-----------|
-| **Claude CLI** (`claude`) | `connect_claude_llama.sh` | `setup_claude_env.sh` |
-| **OpenClaw** (`openclaw`) | `connect_openclaw_llama.sh` | `setup_openclaw_env.sh` |
-
-#### Claude CLI
+### Connect Claude CLI
 
 ```bash
-./connect_claude_llama.sh <job_id> [working_directory]
-
-# Examples
-./connect_claude_llama.sh 2883398
-./connect_claude_llama.sh 2883398 /path/to/my/project
-./connect_claude_llama.sh 2883398 ~/code --resume abc123
+deploy/slurm/connect_claude_llama.sh <job_id> [working_directory]
 ```
 
-**Note**: On first connection to a directory, Claude will ask you to confirm trust of the workspace. You can pre-approve with: `claude trust /path/to/workspace`
-
-**Known Issue**: Some directories may cause Claude to hang indefinitely with local llama.cpp servers. If this happens, try a different working directory or use the official Anthropic API for that directory.
-
-#### OpenClaw
+### Run Codex End To End
 
 ```bash
-./connect_openclaw_llama.sh <job_id> [working_directory]
-
-# Examples
-./connect_openclaw_llama.sh 2883398
-./connect_openclaw_llama.sh 2883398 /path/to/my/project
+deploy/slurm/run_codex_llama.sh \
+  --config gpt-oss-20b.p40 \
+  --partition hpc \
+  --prompt "Reply with exactly: P40_OK"
 ```
+
+This flow:
+
+- submits the llama.cpp Slurm job
+- waits for the server connection file
+- starts the supported Codex compatibility proxy
+- runs `codex exec` against the local `/v1/responses` endpoint
+- cancels the Slurm job on exit unless `--keep-job` is set
+
+The repo-root `run_codex_llama.sh` remains as a compatibility shim.
+The repo-root `submit_llama.sh` and `connect_claude_llama.sh` also remain as compatibility shims.
+
+**Arguments:**
+
+- `job_id` - SLURM job ID of the running llama.cpp server
+- `working_directory` - Optional directory where Claude should run (default: current directory)
+
+**Examples:**
+
+```bash
+# Connect from current directory
+deploy/slurm/connect_claude_llama.sh 2883398
+
+# Connect and work in a specific directory
+deploy/slurm/connect_claude_llama.sh 2883398 /path/to/my/project
+
+# Pass additional arguments to Claude
+deploy/slurm/connect_claude_llama.sh 2883398 ~/code --resume abc123
+```
+
+**Note**: On first connection to a directory, Claude will ask you to confirm trust of the workspace. Make sure to run `connect_claude_llama.sh` from an interactive terminal (not a script). If you see the "trust this folder" prompt, select "Yes" to continue. You can also pre-approve with: `claude trust /path/to/workspace`
+
+**Known Issue**: Some directories may cause Claude to hang indefinitely when connecting to local llama.cpp servers, even though they work fine with Anthropic's API. This appears to be a Claude Code bug with certain directory configurations. If you experience this, try:
+
+1. Use a different working directory that doesn't have the issue
+2. Start Claude in a working directory, then access problematic directory files as needed
+3. Use Claude with the official Anthropic API for those directories
+
+Lists active llama.cpp server jobs if no job ID is provided.
 
 ### Manual Connection
 
-If you prefer to set environment variables yourself:
+If you prefer to connect manually:
 
 ```bash
 source llama_server_connection_<job_id>.txt
-
-# Claude CLI
 source setup_claude_env.sh
 claude
-
-# OpenClaw
-source setup_openclaw_env.sh
-openclaw
 ```
 
 ## Managing Jobs
@@ -237,28 +279,16 @@ scancel <job_id>
 
 ## Server Discovery & Registry
 
-Central registry service for discovering servers without shared filesystem access.
+**NEW**: Central registry service for discovering servers without shared filesystem access.
 
-**Deploy the registry** (pick one):
-
-```bash
-# Systemd (production, as root)
-sudo ./install_registry.sh
-
-# Docker
-docker build -t llama-registry . && \
-  docker run -d --name llama-registry --restart unless-stopped \
-    -p 5000:5000 -v llama-registry-data:/data llama-registry
-```
-
-**Enable auto-registration** in SLURM jobs:
+To enable, set the registry URL:
 
 ```bash
 export REGISTRY_URL="http://your-registry-server:5000"
-./submit_llama.sh --config qwen3-30b
+deploy/slurm/submit_llama.sh --config qwen3-30b
 ```
 
-Servers auto-register on startup and unregister on shutdown. See [REGISTRY_SETUP.md](docs/REGISTRY_SETUP.md) for the full setup guide.
+Servers will auto-register on startup and unregister on shutdown. See [REGISTRY_SETUP.md](REGISTRY_SETUP.md) for full setup guide.
 
 ## Email Notifications
 
@@ -266,11 +296,11 @@ Get notified by email when your server is ready:
 
 ```bash
 # Specify email when submitting
-./submit_llama.sh --config qwen3-30b --email user@example.com
+deploy/slurm/submit_llama.sh --config qwen3-30b --email user@example.com
 
 # Or set default email in your environment
 export NOTIFY_EMAIL="user@example.com"
-./submit_llama.sh --config qwen3-30b
+deploy/slurm/submit_llama.sh --config qwen3-30b
 ```
 
 The email includes:
@@ -291,14 +321,14 @@ Get instant push notifications to your phone or desktop when servers are ready u
 
 ```bash
 # Use default public ntfy.sh server
-./submit_llama.sh --config qwen3-30b --ntfy-topic my-llama-servers
+deploy/slurm/submit_llama.sh --config qwen3-30b --ntfy-topic my-llama-servers
 
 # Use custom ntfy server
-./submit_llama.sh --config qwen3-30b --ntfy-topic servers --ntfy-server https://ntfy.mycompany.com
+deploy/slurm/submit_llama.sh --config qwen3-30b --ntfy-topic servers --ntfy-server https://ntfy.mycompany.com
 
 # Set default topic in environment
 export NTFY_TOPIC="my-llama-servers"
-./submit_llama.sh --config qwen3-30b
+deploy/slurm/submit_llama.sh --config qwen3-30b
 ```
 
 **To receive notifications:**
@@ -329,21 +359,20 @@ open https://ntfy.sh/my-llama-servers
 
 ## Files
 
-- `submit_llama.sh` - Main script to submit llama.cpp server to SLURM
-- `llama_server.slurm` - SLURM batch script that runs llama.cpp server
-- `connect_claude_llama.sh` - Connect Claude CLI to running llama.cpp server
+- `deploy/slurm/submit_llama.sh` - Main script to submit llama.cpp server to SLURM
+- `deploy/slurm/llama_server.slurm` - SLURM batch script that runs llama.cpp server
+- `deploy/slurm/connect_claude_llama.sh` - Connect Claude CLI to running llama.cpp server
 - `setup_claude_env.sh` - Environment configuration for Claude CLI
-- `connect_openclaw_llama.sh` - Connect OpenClaw CLI to running llama.cpp server
-- `setup_openclaw_env.sh` - Environment configuration for OpenClaw
-- `register_server.sh` - Auto-register servers with registry (called by SLURM job)
-- `send_notification.sh` - Email notification when server is ready
-- `send_ntfy_notification.sh` - Push notification via ntfy
 - `model_configs/*.conf` - Model configuration files
 - `llama_server_connection_<job_id>.txt` - Auto-generated connection info
-- `list_servers.sh` - List available servers from registry
-- **`registry/`** - Registry server (Flask app, Dockerfile, systemd service, install script)
-- **`tests/`** - Test suite (`test_registry.py`, `test_registry.sh`)
-- **`docs/`** - Extended documentation
+- **`registry_server.py`** - Central registry service
+- **`register_server.sh`** - Auto-register servers with registry
+- **`list_servers.sh`** - List available servers from registry
+- **`send_notification.sh`** - Email notification when server is ready
+- **`send_ntfy_notification.sh`** - Push notification via ntfy
+- **`REGISTRY_SETUP.md`** - Registry setup and usage guide
+
+The root-level `submit_llama.sh`, `submit_ollama.sh`, `connect_claude_llama.sh`, `llama_server.slurm`, and `ollama_server.slurm` remain as compatibility shims.
 
 ## Requirements
 
@@ -354,8 +383,7 @@ open https://ntfy.sh/my-llama-servers
   - See [llama.cpp compilation guide](https://github.com/ggml-org/llama.cpp?tab=readme-ov-file#cuda)
 - GGUF model files in `~/.cache/llama.cpp/`
 - Claude CLI installed
-- Python 3 (for port selection and registry server)
-- Flask >= 2.0.0 (for registry server — install with `pip install -r requirements.txt`)
+- Python 3 (for port selection)
 - curl (for health checks)
 - NVIDIA GPUs with CUDA support
   - **A100 80GB**: Recommended, supports all model configurations

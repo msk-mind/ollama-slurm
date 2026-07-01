@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "local-ai-compute-broker": {
+      "command": "./examples/mcp-clients/run_broker_mcp.sh",
+      "args": [],
+      "env": {
+        "BROKER_SLURM_MODE": "stub",
+        "BROKER_REPO_ROOT_PATH": "."
+      }
+    }
+  }
+}
