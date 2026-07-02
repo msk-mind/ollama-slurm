@@ -27,6 +27,7 @@ Agent-oriented starter templates are also available:
 - [Claude Code template](./claude-code.example.json)
 - [Codex CLI template](./codex-cli.example.json)
 - [Template notes](./client-config-templates.md)
+- [Codex profile installer](./install_codex_profiles.sh)
 
 Core values:
 
@@ -90,6 +91,29 @@ Current observed client status:
 
 - Codex CLI is verified against the current stdio MCP server, including `list_local_capabilities` and real `rag_compress` submission to Slurm.
 - GitHub Copilot CLI still times out after `initialize` in this environment, so the Copilot template should be treated as a starting point rather than a verified integration.
+
+## Codex Profiles
+
+To keep the broker disabled by default and enable it only for selected Codex sessions, install the provided profiles:
+
+```bash
+examples/mcp-clients/install_codex_profiles.sh
+```
+
+That writes:
+
+- `~/.codex/slurm-broker.config.toml`
+- `~/.codex/local-broker.config.toml`
+
+Use them explicitly:
+
+```bash
+codex -p slurm-broker
+codex -p local-broker
+```
+
+The `slurm-broker` profile targets the Slurm-backed P40 tier.
+The `local-broker` profile targets the local command backend on the current machine.
 
 ## Codex And llama.cpp
 

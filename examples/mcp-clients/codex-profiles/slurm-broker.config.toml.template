@@ -1,0 +1,19 @@
+mcp_servers."local-ai-compute-broker".command = "__REPO_ROOT__/examples/mcp-clients/run_broker_mcp.sh"
+mcp_servers."local-ai-compute-broker".startup_timeout_sec = 60
+
+[mcp_servers."local-ai-compute-broker".env]
+BROKER_BACKEND = "slurm"
+BROKER_SLURM_MODE = "command"
+BROKER_SLURM_SUBMIT_CMD = "/usr/bin/sbatch"
+BROKER_SLURM_STATUS_CMD = "/usr/bin/sacct"
+BROKER_SLURM_CANCEL_CMD = "/usr/bin/scancel"
+BROKER_SLURM_SCRIPT_PATH = "__REPO_ROOT__/deploy/slurm/broker_worker.slurm"
+BROKER_JOB_STORE_PATH = "__REPO_ROOT__/.broker/codex-slurm-jobs.json"
+BROKER_RUN_ROOT_PATH = "__REPO_ROOT__/.broker/codex-slurm-runs"
+BROKER_REPO_ROOT_PATH = "__REPO_ROOT__"
+BROKER_AUDIT_LOG_PATH = "__REPO_ROOT__/.broker/codex-slurm-audit.jsonl"
+BROKER_SLURM_PARTITION_P40 = "hpc"
+BROKER_SLURM_NODELIST_P40 = "pllimsksparky[1-4]"
+BROKER_MODEL_PROFILE_P40 = "gpt-oss-20b.p40"
+BROKER_MCP_ACTOR = "codex-cli"
+BROKER_MCP_ROLE = "user"

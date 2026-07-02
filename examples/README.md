@@ -5,6 +5,8 @@ User-facing integration examples belong here.
 Current focus:
 
 - `mcp-clients/` for agent configuration examples
+- `mcp-clients/install_codex_profiles.sh` for opt-in Codex profile installation
+- `mcp-clients/codex-profiles/` for reusable Codex profile templates
 
 The broker MCP surface already exists under `broker/cmd/broker-mcp`, so this directory should now be treated as the place for:
 

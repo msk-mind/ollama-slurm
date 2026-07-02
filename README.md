@@ -30,6 +30,13 @@ Verified MCP client status:
 - Codex CLI can call the broker MCP tools and submit real Slurm-backed `rag_compress` jobs.
 - GitHub Copilot CLI wiring is still not verified end-to-end and should be treated as experimental.
 
+Opt-in Codex broker profiles:
+
+- `examples/mcp-clients/install_codex_profiles.sh` installs two profile-scoped Codex configs under `~/.codex/`.
+- `codex -p slurm-broker` enables the Slurm-backed broker MCP server for that session only.
+- `codex -p local-broker` enables the local-command broker MCP server for that session only.
+- Plain `codex` startup remains unchanged unless you explicitly select one of those profiles.
+
 Legacy llama.cpp workflow:
 
 Scripts to run llama.cpp server on SLURM and connect Claude CLI to it remain in this repository while the broker architecture is being built.

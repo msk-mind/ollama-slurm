@@ -1,0 +1,13 @@
+mcp_servers."local-ai-compute-broker".command = "__REPO_ROOT__/examples/mcp-clients/run_broker_mcp.sh"
+mcp_servers."local-ai-compute-broker".startup_timeout_sec = 60
+
+[mcp_servers."local-ai-compute-broker".env]
+BROKER_BACKEND = "local"
+BROKER_LOCAL_MODE = "command"
+BROKER_LOCAL_SCRIPT_PATH = "__REPO_ROOT__/deploy/local/broker_worker.sh"
+BROKER_JOB_STORE_PATH = "__REPO_ROOT__/.broker/codex-local-jobs.json"
+BROKER_RUN_ROOT_PATH = "__REPO_ROOT__/.broker/codex-local-runs"
+BROKER_REPO_ROOT_PATH = "__REPO_ROOT__"
+BROKER_AUDIT_LOG_PATH = "__REPO_ROOT__/.broker/codex-local-audit.jsonl"
+BROKER_MCP_ACTOR = "codex-cli"
+BROKER_MCP_ROLE = "user"

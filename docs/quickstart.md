@@ -65,6 +65,16 @@ curl -sf http://127.0.0.1:8081/healthz
 
 If you want to validate the Slurm adapter without a real cluster, use `tests/e2e/smoke_command_mode.sh`. If you want workstation execution, keep `BROKER_BACKEND=local`.
 
+For opt-in Codex setup without changing your default global MCP configuration:
+
+```bash
+examples/mcp-clients/install_codex_profiles.sh
+codex -p slurm-broker
+codex -p local-broker
+```
+
+The generated profiles keep broker MCP wiring session-scoped, so a normal `codex` launch stays unchanged.
+
 ## Option 2B: Run The Broker Against A Real Slurm Cluster
 
 If your cluster has lightly used P40 nodes and more constrained A100 nodes, start from:
